@@ -1,0 +1,17 @@
+[Unit]
+Description=PyConfHyd2026 Soccer Application
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/apps/pyconfhyd2026
+ExecStart=/usr/bin/python3 /apps/pyconfhyd2026/soccer.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pyconfhyd2026
+
+[Install]
+WantedBy=multi-user.target
