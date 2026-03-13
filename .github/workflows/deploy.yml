@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+    - name: Set up WARP
+      uses: fscarmen/warp-on-actions@v1.4
+      
     - name: Checkout code
       uses: actions/checkout@v4
     
