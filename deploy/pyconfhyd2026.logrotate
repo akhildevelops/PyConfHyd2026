@@ -1,0 +1,8 @@
+/var/log/pyconfhyd2026.log {
+    daily
+    rotate 0
+    maxage 1
+    missingok
+    notifempty
+    create 644 root root
+}

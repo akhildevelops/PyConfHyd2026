@@ -9,8 +9,8 @@ WorkingDirectory=/apps/pyconfhyd2026
 ExecStart=/usr/bin/python3 /apps/pyconfhyd2026/soccer.py
 Restart=always
 RestartSec=5
-StandardOutput=journal
-StandardError=journal
+StandardOutput=append:/var/log/pyconfhyd2026.log
+StandardError=append:/var/log/pyconfhyd2026.log
 SyslogIdentifier=pyconfhyd2026
 
 [Install]

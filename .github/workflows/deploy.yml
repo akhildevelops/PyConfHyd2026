@@ -56,10 +56,20 @@ jobs:
         # Copy systemd service file to remote
         scp -P $SSH_PORT deploy/${APP_NAME}.service $REMOTE_USER@$REMOTE_HOST:/tmp/
         
+        # Copy logrotate config to remote
+        scp -P $SSH_PORT deploy/${APP_NAME}.logrotate $REMOTE_USER@$REMOTE_HOST:/tmp/
+        
         # Setup systemd service
         ssh -p $SSH_PORT $REMOTE_USER@$REMOTE_HOST << EOF
           # Move service file to systemd directory
           mv /tmp/${APP_NAME}.service /etc/systemd/system/
+          
+          # Move logrotate config to proper location
+          mv /tmp/${APP_NAME}.logrotate /etc/logrotate.d/${APP_NAME}
+          
+          # Create log file and set permissions
+          touch /var/log/${APP_NAME}.log
+          chmod 644 /var/log/${APP_NAME}.log
           
           # Reload systemd daemon to recognize new service
           systemctl daemon-reload
