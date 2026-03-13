@@ -10,13 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Enable IPv6
-      run: |
-        sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
-        sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0
-        sudo sysctl -w net.ipv6.conf.lo.disable_ipv6=0
-        ip addr show
-    
     - name: Checkout code
       uses: actions/checkout@v4
     
@@ -28,9 +21,7 @@ jobs:
     - name: Add host to known hosts
       run: |
         mkdir -p ~/.ssh
-        # Try IPv6 first, fallback to IPv4
-        ssh-keyscan -6 -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || \
-        ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
+        ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} -H ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
     
     - name: Deploy to remote server
       env:
@@ -39,28 +30,18 @@ jobs:
         SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
         APP_NAME: pyconfhyd2026
       run: |
-        # Create SSH config to prefer IPv6
-        cat >> ~/.ssh/config << EOF
-        Host target
-          HostName $REMOTE_HOST
-          User $REMOTE_USER
-          Port $SSH_PORT
-          AddressFamily inet6
-          StrictHostKeyChecking no
-        EOF
-        
         # Create the deployment directory on remote server
-        ssh target "mkdir -p /apps/$APP_NAME"
+        ssh -p $SSH_PORT $REMOTE_USER@$REMOTE_HOST "mkdir -p /apps/$APP_NAME"
         
         # Sync files to remote server (excluding .git and other unnecessary files)
         rsync -avz --delete \
-          -e "ssh -F ~/.ssh/config" \
+          -e "ssh -p $SSH_PORT" \
           --exclude='.git' \
           --exclude='.github' \
           --exclude='deploy' \
           --exclude='*.md' \
           --exclude='images' \
-          ./ target:/apps/$APP_NAME/
+          ./ $REMOTE_USER@$REMOTE_HOST:/apps/$APP_NAME/
     
     - name: Setup systemd service
       env:
@@ -70,10 +51,10 @@ jobs:
         APP_NAME: pyconfhyd2026
       run: |
         # Copy systemd service file to remote
-        scp -F ~/.ssh/config deploy/${APP_NAME}.service target:/tmp/
+        scp -P $SSH_PORT deploy/${APP_NAME}.service $REMOTE_USER@$REMOTE_HOST:/tmp/
         
         # Setup systemd service
-        ssh target << EOF
+        ssh -p $SSH_PORT $REMOTE_USER@$REMOTE_HOST << EOF
           # Move service file to systemd directory
           mv /tmp/${APP_NAME}.service /etc/systemd/system/
           
@@ -92,8 +73,11 @@ jobs:
     
     - name: Verify deployment
       env:
+        REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+        REMOTE_USER: ${{ secrets.REMOTE_USER }}
+        SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
         APP_NAME: pyconfhyd2026
       run: |
         echo "Checking deployment status..."
-        ssh target "systemctl is-active ${APP_NAME}"
+        ssh -p $SSH_PORT $REMOTE_USER@$REMOTE_HOST "systemctl is-active ${APP_NAME}"
         echo "Deployment completed successfully!"
