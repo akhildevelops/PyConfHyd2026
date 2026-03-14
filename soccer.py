@@ -1,3 +1,4 @@
+import time
 import random
 from threading import Thread, Lock
 import json
@@ -6,6 +7,7 @@ from typing import Dict, Optional, List, Tuple
 import asyncio
 from copy import deepcopy
 import logging
+from datetime import datetime, timedelta
 
 logging.basicConfig(level=logging._nameToLevel["INFO"])
 _logger = logging.getLogger(__name__)
@@ -522,6 +524,9 @@ def filter_not_set_players(players: Dict[int, Player]):
 def give_pass():
     global current_blue_player
     global current_red_player
+    global Kill_passing_thread
+    init_red_player = datetime.now() + timedelta(days=365)
+    init_blue_player = datetime.now() + timedelta(days=365)
     while not Kill_passing_thread:
         available_red_players: List[Tuple[int, Player]] = filter_not_set_players(
             red_team.players
@@ -529,13 +534,24 @@ def give_pass():
         available_blue_players: List[Tuple[int, Player]] = filter_not_set_players(
             blue_team.players
         )
-        if len(available_red_players) > 0 and current_red_player is None:
+        current_red_player_elapsed = datetime.now() - init_red_player
+        if len(available_red_players) > 0 and (
+            current_red_player is None
+            or current_red_player_elapsed > timedelta(seconds=5)
+        ):
             player_id, player = random.choice(available_red_players)
             current_red_player = player
+            init_red_player = datetime.now()
             player.event.set()
-        if len(available_blue_players) > 0 and current_blue_player is None:
+
+        current_blue_player_elapsed = datetime.now() - init_blue_player
+        if len(available_blue_players) > 0 and (
+            current_blue_player is None
+            or current_blue_player_elapsed > timedelta(seconds=5)
+        ):
             player_id, player = random.choice(available_blue_players)
             current_blue_player = player
+            init_blue_player = datetime.now()
             player.event.set()
 
 
@@ -546,6 +562,7 @@ async def router(
     global red_team
     global blue_team
     global current_blue_player
+    global Kill_passing_thread
     global current_red_player
     match request.path.split("="):
         case ["/"]:
@@ -638,7 +655,6 @@ async def router(
                 await asyncio.sleep(1)
 
         case ["/reset"]:
-            global Kill_passing_thread
             Kill_passing_thread = True
             red_team.reset()
             blue_team.reset()
