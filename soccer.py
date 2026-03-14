@@ -639,6 +639,8 @@ async def router(
         case ["/reset"]:
             red_team.reset()
             blue_team.reset()
+            current_blue_player = None
+            current_red_player = None
 
             return make_response(
                 StrByteCache.get(GAME_RESET_HTML), 200, "text/html; charset=utf-8"
