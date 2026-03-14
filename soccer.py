@@ -271,11 +271,14 @@ START_HTML = """<!DOCTYPE html>
         <div class="card">
             <h3>Red Avg Pass Time</h3>
             <div id="red-latency" class="value red-value">0<span style="font-size: 1rem;">ms</span></div>
+            <div id="red-player" class="value red-value"></div>
+
         </div>
 
         <div class="card">
             <h3>Blue Avg Pass Time</h3>
             <div id="blue-latency" class="value blue-value">0<span style="font-size: 1rem;">ms</span></div>
+            <div id="blue-player" class="value blue-value"></div>
         </div>
     </div>
 
@@ -284,6 +287,8 @@ START_HTML = """<!DOCTYPE html>
         const playersEl = document.getElementById('total-players');
         const redEl = document.getElementById('red-latency');
         const blueEl = document.getElementById('blue-latency');
+        const red_player = document.getElementById('red-player');
+        const blue_player = document.getElementById('blue-player');
 
         // Initialize SSE Connection
         const eventSource = new EventSource('/metrics');
@@ -300,6 +305,8 @@ START_HTML = """<!DOCTYPE html>
                 
                 // Update the DOM elements
                 playersEl.innerText = data.total_players;
+                red_player.innerText = data.current_red_player;
+                blue_player.innerText = data.current_blue_player;
                 redEl.innerHTML = `${data.red_avg_latency.toFixed(2)}<span style="font-size: 1rem;">ms</span>`;
                 blueEl.innerHTML = `${data.blue_avg_latency.toFixed(2)}<span style="font-size: 1rem;">ms</span>`;
                 
@@ -313,6 +320,62 @@ START_HTML = """<!DOCTYPE html>
             statusEl.className = 'status-bar status-disconnected';
         };
     </script>
+</body>
+</html>"""
+
+GAME_RESET_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Game Reset</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      background: #0f0f1a;
+      color: #e0e0ff;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    h1 {
+      font-size: 5.5rem;
+      font-weight: 800;
+      margin: 0;
+      letter-spacing: -2px;
+      background: linear-gradient(90deg, #a78bfa, #7dd3fc, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-size: 200% auto;
+      animation: shine 4s linear infinite;
+    }
+    p {
+      font-size: 1.8rem;
+      margin: 1.5rem 0 3rem;
+      color: #a0a0ff;
+      opacity: 0.9;
+    }
+    .subtitle {
+      font-size: 1.3rem;
+      color: #6666aa;
+    }
+    @keyframes shine {
+      to {
+        background-position: 200% center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>GAME RESET</h1>
+  <p>Everything has been cleared.</p>
+  <div class="subtitle">Ready for a new round? 🚀</div>
+
 </body>
 </html>"""
 RED_TEAM = "red"
@@ -387,13 +450,19 @@ class Team:
             self.players[player_id] = player
         return player_id
 
+    def reset(self):
+        for player in self.players.values():
+            player.event.clear()
+        with player_lock:
+            self.players = dict()
+
 
 player_lock = Lock()
 sort_team = RED_TEAM
 red_team = Team(dict())
 blue_team = Team(dict())
-current_red_player: Optional[int] = None
-current_blue_player: Optional[int] = None
+current_red_player: Optional[Player] = None
+current_blue_player: Optional[Player] = None
 status_code_str = {200: "OK", 404: "Not Found"}
 
 
@@ -462,11 +531,11 @@ def give_pass():
         )
         if len(available_red_players) > 0 and current_red_player is None:
             player_id, player = random.choice(available_red_players)
-            current_red_player = player_id
+            current_red_player = player
             player.event.set()
         if len(available_blue_players) > 0 and current_blue_player is None:
             player_id, player = random.choice(available_blue_players)
-            current_red_player = player_id
+            current_blue_player = player
             player.event.set()
 
 
@@ -551,11 +620,29 @@ async def router(
                 total_players = len(red_team.players) + len(blue_team.players)
                 red_avg_latency = avg_latency(red_team.players)
                 blue_avg_latency = avg_latency(blue_team.players)
-                writer.write(
-                    f"data: {json.dumps({'total_players': total_players, 'red_avg_latency': red_avg_latency, 'blue_avg_latency': blue_avg_latency})}\n\n".encode()
-                )
+                data = {
+                    "current_red_player": current_red_player.name
+                    if current_red_player is not None
+                    else "",
+                    "current_blue_player": current_blue_player.name
+                    if current_blue_player is not None
+                    else "",
+                    "total_players": total_players,
+                    "red_avg_latency": red_avg_latency,
+                    "blue_avg_latency": blue_avg_latency,
+                }
+                json_data = json.dumps(data)
+                writer.write(f"data: {json_data}\n\n".encode())
                 await writer.drain()
                 await asyncio.sleep(1)
+
+        case ["/reset"]:
+            red_team.reset()
+            blue_team.reset()
+
+            return make_response(
+                StrByteCache.get(GAME_RESET_HTML), 200, "text/html; charset=utf-8"
+            )
 
 
 async def handle_connection(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
