@@ -133,7 +133,7 @@ FOTTBALL_HTML = """<!DOCTYPE html>
 
     <div id="success-message">
         <div class="success-icon">✓</div>
-        <h2>Passed the Football</h2>
+        <h2 style="color: {{{COLOR}}};">{{{TEAM}}} Passed the Football</h2>
         <p id="final-stats"></p>
     </div>
 
@@ -315,6 +315,8 @@ START_HTML = """<!DOCTYPE html>
     </script>
 </body>
 </html>"""
+RED_TEAM = "red"
+BLUE_TEAM = "blue"
 
 
 class StrByteCache:
@@ -372,6 +374,7 @@ class Player:
         self.writer = writer
         self.event = asyncio.Event()
         self.latency: Optional[float] = None
+        self.team_name: str = RED_TEAM
 
 
 class Team:
@@ -386,7 +389,7 @@ class Team:
 
 
 player_lock = Lock()
-sort_team = "red"
+sort_team = RED_TEAM
 red_team = Team(dict())
 blue_team = Team(dict())
 current_red_player: Optional[int] = None
@@ -487,12 +490,14 @@ async def router(
             player = Player(name, reader, writer)
             player_id = None
             team = deepcopy(sort_team)
-            if sort_team == "red":
+            if sort_team == RED_TEAM:
+                player.team_name = RED_TEAM
                 player_id = red_team.add(player)
-                sort_team = "blue"
+                sort_team = BLUE_TEAM
             else:
+                player.team_name = BLUE_TEAM
                 player_id = blue_team.add(player)
-                sort_team = "red"
+                sort_team = RED_TEAM
 
             hang_resp = make_partial_response(
                 200,
@@ -502,7 +507,12 @@ async def router(
             writer.write(hang_resp)
             await writer.drain()
             await player.event.wait()
-            football_svg = StrByteCache.get(FOTTBALL_HTML)
+            football_svg = StrByteCache.get(
+                FOTTBALL_HTML.replace("{{{TEAM}}}", player.team_name.upper()).replace(
+                    "{{{COLOR}}}",
+                    "#ff0000" if player.team_name == RED_TEAM else "#0000ff",
+                )
+            )
             writer.write(f"Content-Length: {len(football_svg)}\r\n\r\n".encode())
             writer.write(football_svg)
             await writer.drain()
@@ -526,7 +536,7 @@ async def router(
                 player_id_part = cookie2
             player_id = int(player_id_part.split("=")[-1])
             team_name: str = team_part.split("=")[-1]
-            if team_name == "red":
+            if team_name == RED_TEAM:
                 red_team.players[player_id].latency = float(latency)
                 current_red_player = None
             else:
