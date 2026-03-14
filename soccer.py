@@ -540,6 +540,8 @@ def give_pass():
             or current_red_player_elapsed > timedelta(seconds=5)
         ):
             player_id, player = random.choice(available_red_players)
+            if current_red_player is not None:
+                current_red_player.event.clear()
             current_red_player = player
             init_red_player = datetime.now()
             player.event.set()
@@ -550,8 +552,10 @@ def give_pass():
             or current_blue_player_elapsed > timedelta(seconds=5)
         ):
             player_id, player = random.choice(available_blue_players)
-            current_blue_player = player
+            if current_blue_player is not None:
+                current_blue_player.event.clear()
             init_blue_player = datetime.now()
+            current_blue_player = player
             player.event.set()
 
 
