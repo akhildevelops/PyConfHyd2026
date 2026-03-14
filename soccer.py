@@ -1,3 +1,4 @@
+from sentry_sdk.consts import OP
 from urllib3.connection import log
 import random
 from threading import Thread, Lock
@@ -464,6 +465,7 @@ blue_team = Team(dict())
 current_red_player: Optional[Player] = None
 current_blue_player: Optional[Player] = None
 status_code_str = {200: "OK", 404: "Not Found"}
+Kill_passing_thread: bool = False
 
 
 def make_partial_response(
@@ -522,7 +524,7 @@ def filter_not_set_players(players: Dict[int, Player]):
 def give_pass():
     global current_blue_player
     global current_red_player
-    while True:
+    while not Kill_passing_thread:
         available_red_players: List[Tuple[int, Player]] = filter_not_set_players(
             red_team.players
         )
