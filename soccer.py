@@ -587,6 +587,7 @@ async def router(
             await writer.drain()
             return "ignore".encode()
         case ["/start"]:
+            Kill_passing_thread = False
             Thread(target=give_pass).start()
 
             return make_response(
@@ -637,6 +638,8 @@ async def router(
                 await asyncio.sleep(1)
 
         case ["/reset"]:
+            global Kill_passing_thread
+            Kill_passing_thread = True
             red_team.reset()
             blue_team.reset()
             current_blue_player = None
