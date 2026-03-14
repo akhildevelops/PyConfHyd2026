@@ -1,11 +1,18 @@
+from urllib3.connection import log
 import random
 from threading import Thread, Lock
 import json
-from optparse import Option
 from email.utils import formatdate
 from typing import Dict, Optional, List, Tuple
 import asyncio
 from copy import deepcopy
+import logging
+
+logging.basicConfig(level=logging._nameToLevel["INFO"])
+_logger = logging.getLogger(__name__)
+
+HOST = "127.0.0.1"
+PORT = 8081
 
 MAX_PLAYERS = 1024
 MAX_TEAMS = 2
@@ -16,7 +23,7 @@ INTRO_HTML = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Name Form</title>
+    <title>Soccer  ⚽</title>
     <style>
         /* Basic styling to center the form and make it look nice */
         body {
@@ -397,7 +404,7 @@ def make_partial_response(
     response += "Server: Somewhere\r\n"
     response += f"Content-Type: {content_type}\r\n"
     response += "Access-Control-Allow-Origin: *"
-    response += "Connection: keep-alive\r\n"  # Explicitly keep open
+    response += "Connection: keep-alive\r\n"
     if cookies is not None:
         for cookie in cookies:
             response += f"Set-Cookie: {cookie}\r\n"
@@ -470,10 +477,12 @@ async def router(
     global current_red_player
     match request.path.split("="):
         case ["/"]:
+            _logger.debug("Fetching Intro HTML for the request path: %s", request.path)
             return make_response(
                 StrByteCache.get(INTRO_HTML), 200, "text/html; charset=utf-8"
             )
         case ["/?userName", name]:
+            _logger.debug("Fetching Intro HTML for the request path: %s", request.path)
             name: str = name
             player = Player(name, reader, writer)
             player_id = None
@@ -540,12 +549,22 @@ async def router(
 
 
 async def handle_connection(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    _logger.debug("Get peername infor")
+    client_ip, client_port = writer.get_extra_info("peername")
     data = await reader.read(REQUEST_SIZE)
-
+    _logger.debug(
+        "Parse the data of size %s from the buffer of size %s", len(data), REQUEST_SIZE
+    )
     req = Request.parse_from_bytes(
         data,
     )
-    print(req)
+    _logger.info(
+        "Request Details: %s, %s from ip: %s, port: %s",
+        req.req_type,
+        req.path,
+        client_ip,
+        client_port,
+    )
     response = await router(req, reader, writer)
     if response != b"ignore":
         if response is None:
@@ -559,14 +578,19 @@ async def handle_connection(reader: asyncio.StreamReader, writer: asyncio.Stream
 
 
 async def run_server():
-    server = await asyncio.start_server(handle_connection, host="127.0.0.1", port=8081)
+    _logger.debug("Starting the server at %s, %s", HOST, PORT)
+    server = await asyncio.start_server(handle_connection, host=HOST, port=PORT)
+    _logger.info("Server has started .")
     async with server:
+        _logger.info("Loop Mode")
         await server.serve_forever()
 
 
 def main():
+    _logger.debug("Registering the async routine.")
     asyncio.run(run_server())
 
 
 if __name__ == "__main__":
+    _logger.debug("Starting the main.")
     main()
