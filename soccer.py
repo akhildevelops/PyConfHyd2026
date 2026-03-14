@@ -1,5 +1,3 @@
-from sentry_sdk.consts import OP
-from urllib3.connection import log
 import random
 from threading import Thread, Lock
 import json
